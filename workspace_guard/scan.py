@@ -34,6 +34,7 @@ class Change:
     path: str
     project: str
     decision: str = "ALLOW"
+    excluded: bool = False
     flags: list[str] = field(default_factory=list)
 
 
@@ -77,49 +78,105 @@ def project_for(path: str) -> str:
     return parts[0] if len(parts) > 1 else "."
 
 
+def path_parts(path: str) -> list[str]:
+    normalized = path.lower().replace("\\", "/")
+    return [part for part in normalized.split("/") if part]
+
+
+def has_part_sequence(parts: list[str], targets: list[str]) -> bool:
+    if not targets:
+        return False
+    end = len(parts) - len(targets) + 1
+    return any(parts[index : index + len(targets)] == targets for index in range(max(end, 0)))
+
+
 def pattern_matches(path: str, pattern: str) -> bool:
+    parts = path_parts(path)
+    path_text = "/".join(parts)
+    normalized = pattern.lower().replace("\\", "/").strip()
+    if not normalized:
+        return False
+
+    directory_pattern = normalized.endswith("/")
+    normalized = normalized.strip("/")
+    targets = [part for part in normalized.split("/") if part]
+
+    if directory_pattern:
+        if len(targets) == 1 and targets[0].startswith("_"):
+            return any(part == targets[0] or part.endswith(targets[0]) for part in parts)
+        return has_part_sequence(parts, targets)
+
+    if "/" in normalized:
+        return path_text == normalized or path_text.startswith(f"{normalized}/") or path_text.startswith(normalized)
+
+    if normalized in parts:
+        return True
+    return normalized.startswith("_") and any(part.endswith(normalized) for part in parts)
+
+
+def path_allowed(path: str, config: dict) -> bool:
     normalized_path = path.lower().replace("\\", "/")
-    lowered = f"/{normalized_path}"
-    normalized = pattern.lower().replace("\\", "/")
-    if normalized.startswith("/"):
-        return normalized in lowered
-    return normalized in lowered.lstrip("/")
+    allowed_patterns = [item.lower().replace("\\", "/") for item in config.get("allow_path_patterns", [])]
+    return any(normalized_path == pattern or normalized_path.endswith(f"/{pattern}") for pattern in allowed_patterns)
 
 
 def is_allowlisted(path: str, config: dict) -> bool:
-    normalized_path = path.lower().replace("\\", "/")
-    lowered = f"/{normalized_path}"
-    allowed_patterns = [item.lower().replace("\\", "/") for item in config.get("allow_path_patterns", [])]
-    return any(lowered.endswith(f"/{pattern}") for pattern in allowed_patterns)
+    return path_allowed(path, config)
+
+
+def sensitive_kind(name: str, config: dict) -> str | None:
+    lowered = name.lower()
+    block_patterns = config.get("sensitive_block_name_patterns", config.get("sensitive_name_patterns", []))
+    review_patterns = config.get("sensitive_review_name_patterns", [])
+    template_suffixes = (".example", ".sample", ".template", ".dist")
+
+    if lowered.startswith(".env.") and lowered.endswith(template_suffixes):
+        return "review"
+
+    for pattern in block_patterns:
+        normalized = pattern.lower()
+        if lowered == normalized:
+            return "block"
+        if normalized == ".env" and lowered.startswith(".env."):
+            return "block"
+        if normalized != ".env" and normalized in lowered:
+            return "block"
+
+    for pattern in review_patterns:
+        if pattern.lower() in lowered:
+            return "review"
+
+    return None
 
 
 def classify_path(path: str, config: dict) -> list[str]:
     flags: list[str] = []
-    allowed = is_allowlisted(path, config)
+    allowed = path_allowed(path, config)
 
     if not allowed:
         for pattern in config.get("generated_path_patterns", []):
             if pattern_matches(path, pattern):
-                flags.append("generated-or-cache")
+                flags.append("review-generated-or-cache")
                 break
 
     name = pathlib.PurePosixPath(path).name.lower()
-    for pattern in config.get("sensitive_name_patterns", []):
-        if pattern.lower() in name:
-            flags.append("sensitive-name")
-            break
+    kind = sensitive_kind(name, config)
+    if kind == "block":
+        flags.append("block-sensitive")
+    elif kind == "review":
+        flags.append("review-sensitive")
 
     suffix = pathlib.PurePosixPath(path).suffix.lower()
     if suffix in set(config.get("data_extensions", [])):
-        flags.append("data-or-binary")
+        flags.append("review-data-or-binary")
 
     return flags
 
 
 def decide_path(path: str, flags: list[str], config: dict) -> str:
-    allowed = is_allowlisted(path, config)
+    allowed = path_allowed(path, config)
 
-    if "sensitive-name" in flags:
+    if "block-sensitive" in flags:
         return "BLOCK"
 
     if not allowed:
@@ -130,7 +187,7 @@ def decide_path(path: str, flags: list[str], config: dict) -> str:
     if allowed:
         return "ALLOW"
 
-    if "data-or-binary" in flags:
+    if "review-data-or-binary" in flags or "review-sensitive" in flags:
         return "REVIEW"
 
     for pattern in config.get("review_path_patterns", []):
@@ -140,11 +197,19 @@ def decide_path(path: str, flags: list[str], config: dict) -> str:
     return "ALLOW"
 
 
+def apply_project_rules(change: Change, config: dict) -> None:
+    known_projects = {project.lower() for project in config.get("top_level_projects", [])}
+    if known_projects and change.project.lower() not in known_projects:
+        change.flags.append("review-unknown-project")
+        if change.decision == "ALLOW":
+            change.decision = "REVIEW"
+
+
 def parse_status_line(line: str, config: dict) -> Change:
     status = line[:2]
     path = normalize_path(line[3:])
     flags = classify_path(path, config)
-    return Change(
+    change = Change(
         status=status,
         label=STATUS_LABELS.get(status, status.strip() or "changed"),
         path=path,
@@ -152,6 +217,9 @@ def parse_status_line(line: str, config: dict) -> Change:
         flags=flags,
         decision=decide_path(path, flags, config),
     )
+    apply_project_rules(change, config)
+    change.excluded = should_exclude_path(path, config)
+    return change
 
 
 def should_exclude_path(path: str, config: dict) -> bool:
@@ -159,13 +227,7 @@ def should_exclude_path(path: str, config: dict) -> bool:
 
 
 def collect_changes(root: pathlib.Path, config: dict) -> list[Change]:
-    changes: list[Change] = []
-    for line in run_git_status(root):
-        path = normalize_path(line[3:])
-        if should_exclude_path(path, config):
-            continue
-        changes.append(parse_status_line(line, config))
-    return changes
+    return [parse_status_line(line, config) for line in run_git_status(root)]
 
 
 def group_by_project(changes: Iterable[Change]) -> dict[str, list[Change]]:
@@ -175,7 +237,7 @@ def group_by_project(changes: Iterable[Change]) -> dict[str, list[Change]]:
     return dict(sorted(grouped.items(), key=lambda item: item[0].lower()))
 
 
-def summarize(changes: list[Change]) -> dict:
+def summarize(changes: list[Change], excluded_hidden: int = 0) -> dict:
     grouped = group_by_project(changes)
     by_status: dict[str, int] = {}
     by_decision: dict[str, int] = {}
@@ -187,6 +249,7 @@ def summarize(changes: list[Change]) -> dict:
             flagged += 1
     return {
         "total": len(changes),
+        "excluded_hidden": excluded_hidden,
         "projects": len(grouped),
         "flagged": flagged,
         "by_status": dict(sorted(by_status.items())),
@@ -194,9 +257,14 @@ def summarize(changes: list[Change]) -> dict:
     }
 
 
-def render_markdown(root: pathlib.Path, changes: list[Change], project_filter: str | None) -> str:
+def render_markdown(
+    root: pathlib.Path,
+    changes: list[Change],
+    project_filter: str | None,
+    excluded_hidden: int = 0,
+) -> str:
     now = dt.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %z")
-    summary = summarize(changes)
+    summary = summarize(changes, excluded_hidden)
     grouped = group_by_project(changes)
     lines = [
         "# Git Declaration Report",
@@ -205,6 +273,7 @@ def render_markdown(root: pathlib.Path, changes: list[Change], project_filter: s
         f"- Generated: `{now}`",
         f"- Project filter: `{project_filter or 'all'}`",
         f"- Total changes: `{summary['total']}`",
+        f"- Hidden excluded changes: `{summary['excluded_hidden']}`",
         f"- Changed projects: `{summary['projects']}`",
         f"- Flagged paths: `{summary['flagged']}`",
         "",
@@ -234,6 +303,7 @@ def render_markdown(root: pathlib.Path, changes: list[Change], project_filter: s
             "- `ALLOW` means the path is structurally safe to consider for normal staging.",
             "- `REVIEW` means data, binary, raw source, or project-sensitive context needs human confirmation.",
             "- `BLOCK` means generated output, cache, dependency, local secret, or report artifact should not be committed by default.",
+            "- Dependency folders and generated declaration reports are hidden by default; use `--include-excluded` to show them.",
             "",
             "## Project Changes",
             "",
@@ -255,12 +325,17 @@ def render_markdown(root: pathlib.Path, changes: list[Change], project_filter: s
     return "\n".join(lines)
 
 
-def render_json(root: pathlib.Path, changes: list[Change], project_filter: str | None) -> dict:
+def render_json(
+    root: pathlib.Path,
+    changes: list[Change],
+    project_filter: str | None,
+    excluded_hidden: int = 0,
+) -> dict:
     return {
         "root": str(root),
         "generated_at": dt.datetime.now().astimezone().isoformat(),
         "project_filter": project_filter,
-        "summary": summarize(changes),
+        "summary": summarize(changes, excluded_hidden),
         "changes": [
             {
                 "status": change.status,
@@ -268,6 +343,7 @@ def render_json(root: pathlib.Path, changes: list[Change], project_filter: str |
                 "path": change.path,
                 "project": change.project,
                 "decision": change.decision,
+                "excluded": change.excluded,
                 "flags": change.flags,
             }
             for change in changes
@@ -286,6 +362,13 @@ def filter_changes(changes: list[Change], project: str | None) -> list[Change]:
     return [change for change in changes if change.project.lower() == project.lower()]
 
 
+def visible_changes(changes: list[Change], include_excluded: bool) -> tuple[list[Change], int]:
+    if include_excluded:
+        return changes, 0
+    visible = [change for change in changes if not change.excluded]
+    return visible, len(changes) - len(visible)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Track Git declaration status for an AI workspace.")
     parser.add_argument("--root", default=".", help="Git repository root to scan.")
@@ -293,6 +376,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--project", help="Only include one top-level project.")
     parser.add_argument("--write", action="store_true", help="Write Markdown report.")
     parser.add_argument("--json", action="store_true", help="Also write JSON when --write is used.")
+    parser.add_argument("--fail-on-block", action="store_true", help="Exit with code 1 if any BLOCK decision is found.")
+    parser.add_argument("--include-excluded", action="store_true", help="Show dependency, cache, and generated report paths.")
     parser.add_argument("--output-dir", default="reports", help="Report output directory.")
     parser.add_argument("--quiet", action="store_true", help="Only print output paths when writing.")
     return parser
@@ -304,7 +389,8 @@ def main(argv: list[str] | None = None) -> int:
     root = pathlib.Path(args.root).resolve()
     config = load_config(args.config)
     changes = filter_changes(collect_changes(root, config), args.project)
-    markdown = render_markdown(root, changes, args.project)
+    changes, excluded_hidden = visible_changes(changes, args.include_excluded)
+    markdown = render_markdown(root, changes, args.project, excluded_hidden)
 
     if args.write:
         output_dir = pathlib.Path(args.output_dir)
@@ -319,7 +405,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.json:
             json_path = base.with_suffix(".json")
             json_path.write_text(
-                json.dumps(render_json(root, changes, args.project), ensure_ascii=False, indent=2),
+                json.dumps(render_json(root, changes, args.project, excluded_hidden), ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
             print(f"Wrote {json_path}")
@@ -330,9 +416,11 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(markdown)
 
+    if args.fail_on_block and any(change.decision == "BLOCK" for change in changes):
+        return 1
+
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

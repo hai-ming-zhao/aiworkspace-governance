@@ -5,11 +5,10 @@ description = "A lightweight Git governance pattern for local AI-assisted worksp
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Your Name" }]
+authors = [{ name = "Hai-Ming Zhao" }]
 
 [project.scripts]
 workspace-guard = "workspace_guard.scan:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-

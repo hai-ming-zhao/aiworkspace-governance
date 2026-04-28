@@ -3,6 +3,9 @@
 The scanner classifies changed paths before staging. It uses path patterns,
 file names, and extensions to assign one of three decisions.
 
+Path patterns are matched on path boundaries, not arbitrary substrings. For
+example, `outputs/` matches an `outputs` directory, but not `myoutputs`.
+
 ## ALLOW
 
 Use `ALLOW` for paths that are structurally safe to consider for normal staging.
@@ -38,6 +41,9 @@ Examples:
 - `.csv`
 - `.jsonl`
 - business or personal context directories
+- filenames that mention `token`, `password`, or `secret` without being clear
+  local credential files
+- unknown top-level project roots when `top_level_projects` is configured
 
 These files may be durable evidence or useful examples, but they may also be
 private, large, externally licensed, or better stored outside Git.
@@ -53,6 +59,7 @@ Examples:
 - `.pytest_cache/`
 - `.venv/`
 - `.env`
+- credential, private key, and API key files
 - `outputs/`
 - `output/`
 - `runs/` artifacts except `runs/README.md`
@@ -62,8 +69,16 @@ Examples:
 Only force-add a blocked path when the commit message or project README explains
 why it is intentionally archived.
 
+## Automation Options
+
+Generated reports, dependency folders, and cache paths are hidden by default
+when they match `exclude_path_patterns`. Use `--include-excluded` for a full
+audit that shows those paths.
+
+Use `--fail-on-block` in pre-commit hooks or CI jobs when any `BLOCK` decision
+should return exit code `1`.
+
 ## Why This Is Advisory
 
 The scanner does not replace human judgment. It gives a repeatable first pass
 that catches common AI-workspace mistakes before files enter Git history.
-

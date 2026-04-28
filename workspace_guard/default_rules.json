@@ -12,14 +12,18 @@
     "runs/",
     "_dryrun",
     "_render/",
-    ".tmp."
+    ".tmp/",
+    ".tmp.drivedownload/",
+    ".tmp.driveupload/"
   ],
   "block_path_patterns": [
     "node_modules/",
     "__pycache__/",
     ".pytest_cache/",
     ".venv/",
-    ".tmp.",
+    ".tmp/",
+    ".tmp.drivedownload/",
+    ".tmp.driveupload/",
     "reports/git_declaration_",
     "/outputs/",
     "outputs/",
@@ -52,19 +56,30 @@
     "__pycache__/",
     ".pytest_cache/",
     ".venv/",
+    ".tmp/",
+    ".tmp.drivedownload/",
+    ".tmp.driveupload/",
     "reports/git_declaration_",
     "workspace_guard/reports/git_declaration_"
   ],
   "sensitive_name_patterns": [
     ".env",
-    ".env.",
-    "secret",
-    "password",
-    "token",
     "credential",
     "private_key",
     "apikey",
     "api_key"
+  ],
+  "sensitive_block_name_patterns": [
+    ".env",
+    "credential",
+    "private_key",
+    "apikey",
+    "api_key"
+  ],
+  "sensitive_review_name_patterns": [
+    "secret",
+    "password",
+    "token"
   ],
   "data_extensions": [
     ".csv",
@@ -76,6 +91,14 @@
     ".xls",
     ".xlsx",
     ".zip"
+  ],
+  "top_level_projects": [
+    ".",
+    ".github",
+    "docs",
+    "examples",
+    "templates",
+    "tests",
+    "workspace_guard"
   ]
 }
-

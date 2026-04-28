@@ -4,6 +4,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 **/.pytest_cache/
+pytest-cache-files-*/
 
 # Dependency directories
 node_modules/
@@ -26,6 +27,7 @@ workspace_guard/reports/git_declaration_*.md
 workspace_guard/reports/git_declaration_*.json
 
 # Generic generated artifacts
+/projects/guard_evolution/
 **/runs/*
 !**/runs/README.md
 **/outputs/
@@ -44,4 +46,3 @@ workspace_guard/reports/git_declaration_*.json
 *.xls
 *.xlsx
 *.zip
-
