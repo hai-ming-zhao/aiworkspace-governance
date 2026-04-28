@@ -2,6 +2,10 @@
 
 Use this checklist before publishing an AI workspace governance repo.
 
+This checklist is a practical aid, not a guarantee. Passing the checklist does
+not prove that a repository is legally safe, privacy-safe, or free of sensitive
+information.
+
 ## Must Remove
 
 - Real client or business names.
@@ -47,4 +51,3 @@ git grep -n "client\|secret\|password\|api_key\|C:\\Users"
 ```
 
 Review all `REVIEW` and `BLOCK` findings before pushing.
-

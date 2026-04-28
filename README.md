@@ -91,7 +91,17 @@ normal commits.
 - [Commit Decision Rules](docs/commit-decision-rules.md)
 - [Publishing Checklist](docs/publishing-checklist.md)
 
+## Disclaimer
+
+This project provides general workflow and repository-governance guidance for
+AI-assisted local workspaces. It is not legal, security, compliance, or
+data-governance advice.
+
+The scanner uses path, filename, and extension heuristics. It cannot guarantee
+that a repository is free of secrets, private data, copyrighted material, or
+sensitive information. Review all files manually before publishing or pushing to
+a remote repository.
+
 ## License
 
 MIT License. See [LICENSE](LICENSE).
-
