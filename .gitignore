@@ -1,0 +1,47 @@
+# Python caches
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+**/.pytest_cache/
+
+# Dependency directories
+node_modules/
+**/node_modules/
+.venv/
+venv/
+
+# Local environment and credentials
+.env
+.env.*
+*.pem
+*.key
+*.sqlite
+*.db
+
+# Generated reports
+reports/git_declaration_*.md
+reports/git_declaration_*.json
+workspace_guard/reports/git_declaration_*.md
+workspace_guard/reports/git_declaration_*.json
+
+# Generic generated artifacts
+**/runs/*
+!**/runs/README.md
+**/outputs/
+**/output/
+**/*_render/
+*_dryrun*.txt
+**/*_dryrun*.txt
+
+# Binary/data source artifacts require explicit force-add when intentional
+*.csv
+*.docx
+*.jsonl
+*.pdf
+*.pptx
+*.tsv
+*.xls
+*.xlsx
+*.zip
+

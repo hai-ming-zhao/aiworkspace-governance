@@ -1,0 +1,15 @@
+[project]
+name = "ai-workspace-governance"
+version = "0.1.0"
+description = "A lightweight Git governance pattern for local AI-assisted workspaces."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Your Name" }]
+
+[project.scripts]
+workspace-guard = "workspace_guard.scan:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+

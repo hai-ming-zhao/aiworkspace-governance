@@ -1,0 +1,81 @@
+{
+  "generated_path_patterns": [
+    "node_modules/",
+    "__pycache__/",
+    ".pytest_cache/",
+    ".venv/",
+    "/outputs/",
+    "outputs/",
+    "/output/",
+    "output/",
+    "/runs/",
+    "runs/",
+    "_dryrun",
+    "_render/",
+    ".tmp."
+  ],
+  "block_path_patterns": [
+    "node_modules/",
+    "__pycache__/",
+    ".pytest_cache/",
+    ".venv/",
+    ".tmp.",
+    "reports/git_declaration_",
+    "/outputs/",
+    "outputs/",
+    "/output/",
+    "output/",
+    "/runs/",
+    "runs/",
+    "_dryrun",
+    "_render/"
+  ],
+  "review_path_patterns": [
+    "/raw/",
+    "raw/",
+    "/data/",
+    "data/",
+    "/original/",
+    "original/",
+    "/source_materials/",
+    "source_materials/"
+  ],
+  "allow_path_patterns": [
+    "runs/README.md",
+    "outputs/README.md",
+    "raw/README.md",
+    "data/README.md",
+    "source_materials/README.md"
+  ],
+  "exclude_path_patterns": [
+    "node_modules/",
+    "__pycache__/",
+    ".pytest_cache/",
+    ".venv/",
+    "reports/git_declaration_",
+    "workspace_guard/reports/git_declaration_"
+  ],
+  "sensitive_name_patterns": [
+    ".env",
+    ".env.",
+    "secret",
+    "password",
+    "token",
+    "credential",
+    "private_key",
+    "apikey",
+    "api_key"
+  ],
+  "data_extensions": [
+    ".csv",
+    ".docx",
+    ".jsonl",
+    ".pdf",
+    ".pptx",
+    ".tsv",
+    ".xls",
+    ".xlsx",
+    ".zip"
+  ]
+}
+
